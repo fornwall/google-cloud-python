@@ -20,6 +20,8 @@ import datetime
 import decimal
 from typing import Any, cast, Optional, Dict, Union
 
+from dateutil import relativedelta
+
 from google.cloud.bigquery.table import _parse_schema_resource
 from google.cloud.bigquery import _helpers
 from google.cloud.bigquery._helpers import _rows_from_json
@@ -28,7 +30,16 @@ from google.cloud.bigquery._helpers import _SUPPORTED_RANGE_ELEMENTS
 
 
 _SCALAR_VALUE_TYPE = Optional[
-    Union[str, int, float, decimal.Decimal, bool, datetime.datetime, datetime.date]
+    Union[
+        str,
+        int,
+        float,
+        decimal.Decimal,
+        bool,
+        datetime.datetime,
+        datetime.date,
+        relativedelta.relativedelta,
+    ]
 ]
 
 
@@ -525,7 +536,11 @@ class ScalarQueryParameter(_AbstractQueryParameter):
             supported types.
 
         value:
-            The scalar parameter value.
+            The scalar parameter value. For ``INTERVAL``, use a
+            :class:`dateutil.relativedelta.relativedelta` containing only relative
+            years, months, weeks, days, hours, minutes, seconds, and microseconds, or
+            an interval string accepted by BigQuery. Absolute date or time
+            fields, weekdays, and leapdays are not supported.
     """
 
     def __init__(
@@ -550,8 +565,8 @@ class ScalarQueryParameter(_AbstractQueryParameter):
         Args:
             type_:
                 Name of parameter type.  One of 'STRING', 'INT64',
-                'FLOAT64', 'NUMERIC', 'BIGNUMERIC', 'BOOL', 'TIMESTAMP', 'DATETIME', or
-                'DATE'.
+                'FLOAT64', 'NUMERIC', 'BIGNUMERIC', 'BOOL', 'TIMESTAMP', 'DATETIME',
+                'DATE', or 'INTERVAL'.
 
             value:
                 The scalar parameter value.
@@ -639,7 +654,7 @@ class ArrayQueryParameter(_AbstractQueryParameter):
         array_type (Union[str, ScalarQueryParameterType, StructQueryParameterType]):
             The type of array elements. If given as a string, it must be one of
             `'STRING'`, `'INT64'`, `'FLOAT64'`, `'NUMERIC'`, `'BIGNUMERIC'`, `'BOOL'`,
-            `'TIMESTAMP'`, `'DATE'`, or `'STRUCT'`/`'RECORD'`.
+            `'TIMESTAMP'`, `'DATE'`, `'INTERVAL'`, or `'STRUCT'`/`'RECORD'`.
             If the type is ``'STRUCT'``/``'RECORD'`` and ``values`` is empty,
             the exact item type cannot be deduced, thus a ``StructQueryParameterType``
             instance needs to be passed in.
@@ -667,7 +682,7 @@ class ArrayQueryParameter(_AbstractQueryParameter):
             array_type (Union[str, ScalarQueryParameterType, StructQueryParameterType]):
                 The type of array elements. If given as a string, it must be one of
                 `'STRING'`, `'INT64'`, `'FLOAT64'`, `'NUMERIC'`, `'BIGNUMERIC'`,
-                `'BOOL'`, `'TIMESTAMP'`, `'DATE'`, or `'STRUCT'`/`'RECORD'`.
+                `'BOOL'`, `'TIMESTAMP'`, `'DATE'`, `'INTERVAL'`, or `'STRUCT'`/`'RECORD'`.
                 If the type is ``'STRUCT'``/``'RECORD'`` and ``values`` is empty,
                 the exact item type cannot be deduced, thus a ``StructQueryParameterType``
                 instance needs to be passed in.
@@ -1137,6 +1152,7 @@ class SqlParameterScalarTypes:
     GEOGRAPHY = ScalarQueryParameterType("GEOGRAPHY")
     INT64 = ScalarQueryParameterType("INT64")
     INTEGER = ScalarQueryParameterType("INT64")
+    INTERVAL = ScalarQueryParameterType("INTERVAL")
     NUMERIC = ScalarQueryParameterType("NUMERIC")
     STRING = ScalarQueryParameterType("STRING")
     TIME = ScalarQueryParameterType("TIME")

@@ -517,6 +517,49 @@ def _int_to_json(value):
     return value
 
 
+def _interval_to_json(value):
+    """Coerce a relativedelta to BigQuery's canonical INTERVAL format."""
+    if not isinstance(value, relativedelta.relativedelta):
+        return value
+
+    if value.leapdays or any(
+        getattr(value, field) is not None
+        for field in (
+            "year",
+            "month",
+            "day",
+            "hour",
+            "minute",
+            "second",
+            "microsecond",
+            "weekday",
+        )
+    ):
+        raise ValueError(
+            "INTERVAL values cannot contain absolute date or time fields, "
+            "weekdays, or leapdays"
+        )
+
+    value = value.normalized()
+    # The calendar, day, and time parts have independent signs. Components
+    # within the calendar and time parts may have mixed signs in relativedelta.
+    total_months = value.years * 12 + value.months
+    calendar_sign = "-" if total_months < 0 else ""
+    years, months = divmod(abs(total_months), 12)
+    total_microseconds = (
+        (value.hours * 60 + value.minutes) * 60 + value.seconds
+    ) * 1_000_000 + value.microseconds
+    time_sign = "-" if total_microseconds < 0 else ""
+    seconds, microseconds = divmod(abs(total_microseconds), 1_000_000)
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    fraction = f".{microseconds:06d}" if microseconds else ""
+    return (
+        f"{calendar_sign}{years}-{months} {value.days} "
+        f"{time_sign}{hours}:{minutes}:{seconds}{fraction}"
+    )
+
+
 def _float_to_json(value) -> Union[None, str, float]:
     """Coerce 'value' to an JSON-compatible representation."""
     if value is None:
@@ -661,6 +704,7 @@ def _range_field_to_json(range_element_type, value):
 _SCALAR_VALUE_TO_JSON_ROW = {
     "INTEGER": _int_to_json,
     "INT64": _int_to_json,
+    "INTERVAL": _interval_to_json,
     "FLOAT": _float_to_json,
     "FLOAT64": _float_to_json,
     "NUMERIC": _decimal_to_json,

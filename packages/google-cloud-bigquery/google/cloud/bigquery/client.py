@@ -3944,6 +3944,9 @@ class Client(ClientWithProject):
                 a list of dictionaries is given, the keys must include all
                 required fields in the schema. Keys which do not correspond
                 to a field in the schema are ignored.
+                For ``INTERVAL`` fields, values may be interval strings or
+                :class:`dateutil.relativedelta.relativedelta` objects without
+                absolute date or time fields, weekdays, or leapdays.
             selected_fields (Sequence[google.cloud.bigquery.schema.SchemaField]):
                 The fields to return. Required if ``table`` is a
                 :class:`~google.cloud.bigquery.table.TableReference`.
