@@ -22,6 +22,8 @@ import packaging
 import unittest
 from unittest import mock
 
+from dateutil.relativedelta import relativedelta
+
 import google.api_core
 from google.cloud.bigquery._helpers import _isinstance_or_raise
 
@@ -405,6 +407,82 @@ class Test_int_to_json(unittest.TestCase):
 
     def test_w_string(self):
         self.assertEqual(self._call_fut("123"), "123")
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        (None, None),
+        ("1-2 3 4:5:6.123456", "1-2 3 4:5:6.123456"),
+        ("P1Y2M3DT4H5M6.123456S", "P1Y2M3DT4H5M6.123456S"),
+        (relativedelta(), "0-0 0 0:0:0"),
+        (
+            relativedelta(
+                years=1,
+                months=2,
+                days=3,
+                hours=4,
+                minutes=5,
+                seconds=6,
+                microseconds=123456,
+            ),
+            "1-2 3 4:5:6.123456",
+        ),
+        (
+            relativedelta(
+                years=-1,
+                months=-2,
+                days=-3,
+                hours=-4,
+                minutes=-5,
+                seconds=-6,
+                microseconds=-123456,
+            ),
+            "-1-2 -3 -4:5:6.123456",
+        ),
+        (relativedelta(months=-1, days=2, hours=-3), "-0-1 2 -3:0:0"),
+        (relativedelta(years=1, months=-2), "0-10 0 0:0:0"),
+        (relativedelta(years=-1, months=2), "-0-10 0 0:0:0"),
+        (relativedelta(hours=1, minutes=-30), "0-0 0 0:30:0"),
+        (relativedelta(hours=-1, minutes=30), "0-0 0 -0:30:0"),
+        (relativedelta(seconds=1, microseconds=-1), "0-0 0 0:0:0.999999"),
+        (relativedelta(seconds=-1, microseconds=1), "0-0 0 -0:0:0.999999"),
+        (relativedelta(microseconds=1), "0-0 0 0:0:0.000001"),
+        (relativedelta(microseconds=-1), "0-0 0 -0:0:0.000001"),
+        (relativedelta(days=1.5, hours=2), "0-0 1 14:0:0"),
+        (relativedelta(seconds=-1.5), "0-0 0 -0:0:1.500000"),
+        (relativedelta(weeks=2, hours=25), "0-0 15 1:0:0"),
+        (relativedelta(years=10000, days=3660000), "10000-0 3660000 0:0:0"),
+        (relativedelta(years=-10000, days=-3660000), "-10000-0 -3660000 0:0:0"),
+    ],
+)
+def test_interval_to_json(value, expected):
+    from google.cloud.bigquery._helpers import _interval_to_json
+
+    assert _interval_to_json(value) == expected
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("year", 2026),
+        ("month", 1),
+        ("day", 1),
+        ("hour", 0),
+        ("minute", 0),
+        ("second", 0),
+        ("microsecond", 0),
+        ("weekday", 0),
+        ("leapdays", 1),
+        ("yearday", 60),
+        ("nlyearday", 60),
+    ],
+)
+def test_interval_to_json_rejects_calendar_adjustments(field, value):
+    from google.cloud.bigquery._helpers import _interval_to_json
+
+    with pytest.raises(ValueError, match="INTERVAL values cannot contain"):
+        _interval_to_json(relativedelta(days=1, **{field: value}))
 
 
 class Test_float_to_json(unittest.TestCase):

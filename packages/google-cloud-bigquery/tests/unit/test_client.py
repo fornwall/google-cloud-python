@@ -6484,6 +6484,51 @@ class TestClient(unittest.TestCase):
         with self.assertRaises(TypeError):
             client.insert_rows(table, {"full_name": "value"})
 
+    def test_insert_rows_w_interval(self):
+        from dateutil.relativedelta import relativedelta
+        from google.cloud.bigquery import SchemaField, Table
+
+        client = self._make_one(project=self.PROJECT, credentials=_make_credentials())
+        conn = client._connection = make_connection({})
+        field = SchemaField("duration", "INTERVAL")
+        table = Table(
+            self.TABLE_REF,
+            schema=[
+                field,
+                SchemaField("durations", "INTERVAL", mode="REPEATED"),
+                SchemaField("record", "RECORD", fields=[field]),
+            ],
+        )
+        value = relativedelta(years=1, months=2, days=-3, microseconds=-1)
+        text = "1-2 -3 -0:0:0.000001"
+        rows = [
+            (value, [value], {"duration": value}),
+            {"duration": text, "durations": [], "record": None},
+            (None, [], None),
+        ]
+
+        errors = client.insert_rows(table, rows, row_ids=["0", "1", "2"])
+
+        self.assertEqual(errors, [])
+        conn.api_request.assert_called_once()
+        self.assertEqual(
+            conn.api_request.call_args.kwargs["data"],
+            {
+                "rows": [
+                    {
+                        "insertId": "0",
+                        "json": {
+                            "duration": text,
+                            "durations": [text],
+                            "record": {"duration": text},
+                        },
+                    },
+                    {"insertId": "1", "json": {"duration": text, "durations": []}},
+                    {"insertId": "2", "json": {"durations": []}},
+                ]
+            },
+        )
+
     def test_insert_rows_w_numeric(self):
         from google.cloud.bigquery import table
         from google.cloud.bigquery.schema import SchemaField

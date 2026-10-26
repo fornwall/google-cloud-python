@@ -17,6 +17,8 @@ import decimal
 import unittest
 from unittest import mock
 
+from dateutil.relativedelta import relativedelta
+
 
 class Test_UDFResource(unittest.TestCase):
     @staticmethod
@@ -505,6 +507,26 @@ class Test_ScalarQueryParameter(unittest.TestCase):
         self.assertEqual(param.name, "foo")
         self.assertEqual(param.type_, "INT64")
         self.assertEqual(param.value, 123)
+
+    def test_interval(self):
+        value = relativedelta(years=-1, months=-2, days=3, microseconds=-1)
+        param = self._make_one("duration", "INTERVAL", value)
+        resource = {
+            "name": "duration",
+            "parameterType": {"type": "INTERVAL"},
+            "parameterValue": {"value": "-1-2 3 -0:0:0.000001"},
+        }
+        self.assertEqual(param.to_api_repr(), resource)
+        self.assertEqual(type(param).from_api_repr(resource), param)
+
+    def test_interval_type(self):
+        from google.cloud.bigquery.query import SqlParameterScalarTypes
+
+        param = self._make_one(None, SqlParameterScalarTypes.INTERVAL, None)
+        self.assertEqual(
+            param.to_api_repr(),
+            {"parameterType": {"type": "INTERVAL"}, "parameterValue": {"value": None}},
+        )
 
     def test___eq__(self):
         param = self._make_one(name="foo", type_="INT64", value=123)
@@ -1225,6 +1247,19 @@ def _make_subparam(name, type_, value):
 
 
 class Test_ArrayQueryParameter(unittest.TestCase):
+    def test_interval(self):
+        value = relativedelta(months=2, days=-3, microseconds=1)
+        param = self._make_one("durations", "INTERVAL", [value, None])
+        resource = {
+            "name": "durations",
+            "parameterType": {"type": "ARRAY", "arrayType": {"type": "INTERVAL"}},
+            "parameterValue": {
+                "arrayValues": [{"value": "0-2 -3 0:0:0.000001"}, {"value": None}]
+            },
+        }
+        self.assertEqual(param.to_api_repr(), resource)
+        self.assertEqual(type(param).from_api_repr(resource), param)
+
     @staticmethod
     def _get_target_class():
         from google.cloud.bigquery.query import ArrayQueryParameter
@@ -1524,6 +1559,24 @@ class Test_ArrayQueryParameter(unittest.TestCase):
 
 
 class Test_StructQueryParameter(unittest.TestCase):
+    def test_interval(self):
+        from google.cloud.bigquery.query import ScalarQueryParameter
+
+        value = relativedelta(days=3, hours=-4)
+        param = self._make_one(
+            "record", ScalarQueryParameter("duration", "INTERVAL", value)
+        )
+        resource = {
+            "name": "record",
+            "parameterType": {
+                "type": "STRUCT",
+                "structTypes": [{"name": "duration", "type": {"type": "INTERVAL"}}],
+            },
+            "parameterValue": {"structValues": {"duration": {"value": "0-0 3 -4:0:0"}}},
+        }
+        self.assertEqual(param.to_api_repr(), resource)
+        self.assertEqual(type(param).from_api_repr(resource), param)
+
     @staticmethod
     def _get_target_class():
         from google.cloud.bigquery.query import StructQueryParameter
